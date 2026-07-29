@@ -1,0 +1,34 @@
+{
+  "name": "casters-tool-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless API and ingestion service for Caster's Tool \u2014 FRC/FTC event data for broadcasters. Fastify + TypeScript.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start:tsx": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/http-proxy": "^11.6.0",
+    "@simplewebauthn/server": "^13.3.2",
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.1.0",
+    "undici": "^6.27.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "license": "ISC"
+}
