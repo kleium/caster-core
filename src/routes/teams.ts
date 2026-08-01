@@ -24,6 +24,7 @@ import { getTeamStats } from '../services/teamStatsService.js';
 import { getAwardsSummary, getHeadToHead } from '../services/teamLookupService.js';
 import { raiseApiError } from '../lib/apiError.js';
 import { ApiError } from '../plugins/errorEnvelope.js';
+import { verifySessionToken } from '../lib/sessionToken.js';
 
 interface TeamKeyParams {
   team_key: string;
@@ -196,7 +197,7 @@ export function registerTeamWriteRoutes(app: FastifyInstance): void {
   app.post<{ Body: unknown }>('/api/teams/notes', async (req, reply) => {
     const body = validateNoteCreateBody(req.body);
     try {
-      const result = await createNote(body);
+      const result = await createNote(body, verifySessionToken(req.headers.authorization));
       reply.code(201);
       return result;
     } catch (e) {

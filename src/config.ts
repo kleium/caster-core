@@ -42,6 +42,9 @@ export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 export const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 export const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY ?? '';
 export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? '';
+// Signing secret for Supabase access tokens. Only needed where we must *trust*
+// a token's claims rather than merely read them — see lib/sessionToken.ts.
+export const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET ?? '';
 
 // ── Node-backend-specific ──────────────────────────────────
 export const PORT = Number(process.env.PORT ?? 3000);

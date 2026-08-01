@@ -4,6 +4,7 @@
  */
 import { getSupabase } from './supabase.js';
 import { ApiError } from '../plugins/errorEnvelope.js';
+import type { Identity } from '../lib/sessionToken.js';
 
 type Obj = Record<string, unknown>;
 
@@ -184,8 +185,15 @@ export async function getTeamNotes(
   return data ?? [];
 }
 
-/** POST /notes — teams.py:264. */
-export async function createNote(body: NoteCreateBody): Promise<Obj> {
+/**
+ * POST /notes — teams.py:264.
+ *
+ * Authorship is recorded from the *verified* token when one is supplied, never
+ * from the body — a client cannot pick whose name appears on a note. Callers
+ * without a session (the iOS client, sync) still work; their notes are simply
+ * attributed to the device rather than a person.
+ */
+export async function createNote(body: NoteCreateBody, author?: Identity | null): Promise<Obj> {
   if (!body.content || !body.content.trim()) {
     throw new ApiError(400, 'Note content cannot be empty.');
   }
@@ -197,6 +205,8 @@ export async function createNote(body: NoteCreateBody): Promise<Obj> {
     event_key: body.event_key ?? null,
     category: body.category ?? null,
     author_device_id: body.author_device_id,
+    author_user_id: author?.userId ?? null,
+    author_name: author?.displayName ?? null,
     is_deleted: false,
   };
   const { data, error } = await sb.from('notes').insert(row).select();
