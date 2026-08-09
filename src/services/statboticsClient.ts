@@ -182,8 +182,7 @@ class StatboticsClient {
       if (teamNum) teamNames[String(teamNum)] = name;
       if (idx < limit) {
         const epaBlock = (pyOr(te.epa, {}) ?? {}) as Obj;
-        const total = (pyGet(epaBlock, 'total_points', {}) ?? {}) as Obj;
-        topEpa.push({ team: teamNum, name, epa: round(pyGet(total, 'mean', 0) as number, 1) });
+        topEpa.push({ team: teamNum, name, epa: round(epaTotal(epaBlock.total_points), 1) });
       }
     });
 
@@ -216,7 +215,6 @@ class StatboticsClient {
     return rows.map((te) => {
       const record = (pyOr(te.record, {}) ?? {}) as Obj;
       const epaBlock = (pyOr(te.epa, {}) ?? {}) as Obj;
-      const total = (pyGet(epaBlock, 'total_points', {}) ?? {}) as Obj;
       return {
         team: te.team,
         name: pyGet(te, 'name', ''),
@@ -227,7 +225,7 @@ class StatboticsClient {
         ties: pyGet(record, 'ties', 0),
         count: pyGet(record, 'count', 0),
         winrate: round(pyGet(record, 'winrate', 0) as number, 4),
-        epa: round(pyGet(total, 'mean', 0) as number, 1),
+        epa: round(epaTotal(epaBlock.total_points), 1),
       };
     });
   }
@@ -246,9 +244,22 @@ const round = pyRound; // Python-compatible round-half-to-even
 interface TeamEventEpa {
   team?: number;
   epa?: {
-    total_points?: { mean?: number };
+    total_points?: number | { mean?: number };
     breakdown?: { auto_points?: number; teleop_points?: number; endgame_points?: number };
   };
+}
+
+/**
+ * `epa.total_points` was an object (`{mean, sd, ...}`) when this client was
+ * written; Statbotics has since flattened it to a plain number on every
+ * endpoint that returns it (`/team_years`, `/team_events`). Reading `.mean`
+ * off a number silently yields `undefined` (JS, unlike Python, doesn't throw)
+ * — so this drifted quietly to 0 rather than crashing. Handle both shapes so
+ * it survives another such change without going wrong silently again.
+ */
+function epaTotal(totalPoints: number | { mean?: number } | null | undefined): number {
+  if (typeof totalPoints === 'number') return totalPoints;
+  return totalPoints?.mean ?? 0;
 }
 
 /**
@@ -271,10 +282,9 @@ export async function getEpaMap(
   for (const te of teamEvents) {
     const teamNum = te.team;
     const epaBlock = te.epa ?? {};
-    const total = epaBlock.total_points ?? {};
     const breakdown = epaBlock.breakdown ?? {};
     epaMap[`frc${teamNum}`] = {
-      epa: round(total.mean ?? 0, 2),
+      epa: round(epaTotal(epaBlock.total_points), 2),
       epa_auto: round(breakdown.auto_points ?? 0, 2),
       epa_teleop: round(breakdown.teleop_points ?? 0, 2),
       epa_endgame: round(breakdown.endgame_points ?? 0, 2),

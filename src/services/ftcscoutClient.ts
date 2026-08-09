@@ -222,7 +222,16 @@ class FTCScoutClient {
     return results;
   }
 
-  /** Traditional (alliance) world-record match for a season. ftcscout_client.py:192. */
+  /**
+   * Traditional (alliance) world-record match for a season. ftcscout_client.py:192.
+   *
+   * No `... on MatchScores2026` fragment yet: FTC Scout's schema doesn't have
+   * that type until they add 2026 support (confirmed via introspection —
+   * newest is MatchScores2025). A GraphQL document referencing an unknown
+   * type fails validation for the *whole* query, so requesting an unsupported
+   * season doesn't just come back empty, it 400s every season including
+   * ones that do exist. Add the 2026 fragment back once FTC Scout ships it.
+   */
   async getWorldRecord(season: number): Promise<Obj | null> {
     const cacheKey = `wr:${season}`;
     const cached = this.getCached<Obj | null>(cacheKey, WR_CACHE_TTL);
@@ -234,10 +243,6 @@ class FTCScoutClient {
             season eventCode id hasBeenPlayed
             tournamentLevel series matchNum
             scores {
-              ... on MatchScores2026 {
-                red { autoPoints dcPoints totalPoints minorsCommitted majorsCommitted }
-                blue { autoPoints dcPoints totalPoints minorsCommitted majorsCommitted }
-              }
               ... on MatchScores2025 {
                 red { autoPoints dcPoints totalPoints minorsCommitted majorsCommitted }
                 blue { autoPoints dcPoints totalPoints minorsCommitted majorsCommitted }
@@ -317,7 +322,10 @@ class FTCScoutClient {
   }
 
 
-  /** Top match scores + top-OPR teams for a season. ftcscout_client.py:434. */
+  /**
+   * Top match scores + top-OPR teams for a season. ftcscout_client.py:434.
+   * No MatchScores2026 fragment — see the comment on getWorldRecord above.
+   */
   async getSeasonHighScores(season: number, limit = 10): Promise<Obj> {
     const cacheKey = `season_high:${season}:${limit}`;
     const cached = this.getCached<Obj>(cacheKey, SEASON_STATS_TTL);
@@ -348,7 +356,6 @@ class FTCScoutClient {
                 match {
                   season eventCode id tournamentLevel matchNum
                   scores {
-                    ... on MatchScores2026 { ${scoreFrag} }
                     ... on MatchScores2025 { ${scoreFrag} }
                     ... on MatchScores2024 { ${scoreFrag} }
                   }
@@ -377,7 +384,6 @@ class FTCScoutClient {
               data {
                 teamNumber
                 stats {
-                  ... on TeamEventStats2026 { ${statFrag} }
                   ... on TeamEventStats2025 { ${statFrag} }
                   ... on TeamEventStats2024 { ${statFrag} }
                 }
