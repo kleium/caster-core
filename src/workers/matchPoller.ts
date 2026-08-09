@@ -73,13 +73,51 @@ async function pollMatches(eventKey: string): Promise<void> {
     const matchNum = m.matchNumber ?? 0;
     const level = (m.tournamentLevel ?? 'Qualification').toLowerCase();
 
+    // FRC's own API stopped reporting separate Quarterfinal/Semifinal/Final
+    // tournamentLevel values for 2023+ events — everything playoff is just
+    // "Playoff", with the actual round embedded in `description` ("Match 5
+    // (R2)", "Final 1", "Final Tiebreaker"). The old three-way string match
+    // below predates that change: it bucketed every 2023+ playoff match into
+    // 'sf' and never produced 'f' at all, AND built match keys without the
+    // "m{n}" suffix TBA-sourced ingestion uses (`sf5m1`, not `sf5`) — so the
+    // hot poller's rows lived in a different key space than the correct ones,
+    // making every correctly-keyed row look orphaned and get purged. Confirmed
+    // against a live event's raw FRC API response and cross-checked against
+    // TBA's own comp_level for the same matches — this mapping is exact for
+    // the 2023+ unified double-elim bracket (matches 1-13 → 'sf', set = the
+    // match's own sequential number; "Final N" → 'f', set 1).
     let compLevel: string;
-    if (level.includes('qual')) compLevel = 'qm';
-    else if (level.includes('playoff') || level.includes('elim')) compLevel = 'sf';
-    else if (level.includes('final')) compLevel = 'f';
-    else compLevel = level.slice(0, 2);
+    let setNumber: number;
+    let withinSetNum: number;
+    if (level === 'playoff') {
+      const desc = String(m.description ?? '').trim();
+      if (/^final/i.test(desc)) {
+        compLevel = 'f';
+        setNumber = 1;
+        const digits = desc.match(/(\d+)/);
+        withinSetNum = digits ? Number(digits[1]) : 3; // "Final Tiebreaker" has no digit — it's game 3
+      } else {
+        compLevel = 'sf';
+        setNumber = matchNum;
+        withinSetNum = 1;
+      }
+    } else {
+      // Legacy pre-2023 events (distinct Quarterfinal/Semifinal/Final levels).
+      // Unverified against live data — no legacy event is realistically still
+      // being hot-polled — kept as a fallback rather than guessed at further.
+      if (level.includes('qual')) compLevel = 'qm';
+      else if (level.includes('elim')) compLevel = 'sf';
+      else if (level.includes('final')) compLevel = 'f';
+      else compLevel = level.slice(0, 2);
+      setNumber = (m as unknown as Record<string, unknown>)['playNumber'] as number | undefined ?? 1;
+      withinSetNum = matchNum;
+    }
 
-    const matchKey = `${eventKey}_${compLevel}${matchNum}`;
+    // TBA's own key scheme, which the rest of the app (ingestion, reads,
+    // Realtime subscribers) all key off: qm has no set component; everything
+    // else is `{level}{set}m{withinSet}`.
+    const matchKey =
+      compLevel === 'qm' ? `${eventKey}_qm${matchNum}` : `${eventKey}_${compLevel}${setNumber}m${withinSetNum}`;
 
     const scoreRed = m.scoreRedFinal as number | null | undefined;
     const scoreBlue = m.scoreBlueFinal as number | null | undefined;
@@ -118,8 +156,8 @@ async function pollMatches(eventKey: string): Promise<void> {
       match_key: matchKey,
       event_key: eventKey,
       comp_level: compLevel,
-      match_number: matchNum,
-      set_number: raw_m['playNumber'] ?? 1,
+      match_number: withinSetNum,
+      set_number: setNumber,
       status,
       alliances,
       score_breakdown: raw_m['scoreBreakdown'] ?? {},
